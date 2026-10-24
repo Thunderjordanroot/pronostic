@@ -24,6 +24,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import functools
+
+print = functools.partial(print, flush=True)  # affichage immédiat dans le journal
 
 # ------------------------- CONFIG -------------------------
 API_KEY = os.environ.get("API_FOOTBALL_KEY", "")
@@ -243,8 +246,10 @@ def cmd_picks(args):
         print(f"Analyse limitée aux {MAX_MATCHES} premiers (réglage MAX_MATCHES) pour économiser le quota API.")
         fixtures = fixtures[:MAX_MATCHES]
     found = []
-    for f in fixtures:
+    total = len(fixtures)
+    for n, f in enumerate(fixtures, 1):
         h, a = f["teams"]["home"], f["teams"]["away"]
+        print(f"[{n}/{total}] analyse : {h['name']} - {a['name']}")
         try:
             hh, ah = get_history(conn, h["id"]), get_history(conn, a["id"])
         except Exception as e:
@@ -261,9 +266,11 @@ def cmd_picks(args):
         if state == "lost":
             continue  # déjà perdu en direct : inutile de le proposer
         found.append((f, best, state))
+        print(f"   ➜ TROUVÉ n°{len(found)} : {h['name']} - {a['name']} | {best['label']} ({best['rate']:.0%})")
     found.sort(key=lambda x: (x[1]["rate"], x[1]["recent5"]), reverse=True)
     found = found[:TOP]
     latest = []
+    print("\n===== LISTE FINALE (triée par fiabilité) =====")
 
     if not found:
         print("Aucun match ne remplit les critères pour cette fenêtre.")
