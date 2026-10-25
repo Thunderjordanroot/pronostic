@@ -2,33 +2,26 @@ name: Pronostics
 
 on:
   schedule:
-    - cron: "0 4 * * *"        # 04:00 UTC = 06:00 à Goma, chaque jour (source API-Football)
+    - cron: "0 4 * * *"        # 04:00 UTC = 06:00 à Goma, chaque jour
   workflow_dispatch:
     inputs:
-      source:
-        description: "Source des données"
-        type: choice
-        default: apifootball
-        options:
-          - apifootball
-          - footballcharts
       mode:
         description: "Que veux-tu ?"
         type: choice
         default: aujourdhui
         options:
+          - probe
           - aujourdhui
           - maintenant
           - creneau
-          - probe
       until:
-        description: "Mode maintenant : heure limite (HH:MM)"
+        description: "Mode « maintenant » : heure limite (HH:MM)"
         default: "06:00"
       from_time:
-        description: "Mode creneau : début (HH:MM)"
+        description: "Mode « creneau » : début (HH:MM)"
         default: "18:00"
       to_time:
-        description: "Mode creneau : fin (HH:MM)"
+        description: "Mode « creneau » : fin (HH:MM)"
         default: "23:59"
 
 permissions:
@@ -48,37 +41,34 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Lancer le script
+      - name: Lancer le script (Football Charts)
         env:
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           FC_API_KEY: ${{ secrets.FC_API_KEY }}
           TZ_LOCAL: Africa/Lubumbashi
-          SOURCE: ${{ github.event.inputs.source }}
           MODE: ${{ github.event.inputs.mode }}
           UNTIL: ${{ github.event.inputs.until }}
           FROM_T: ${{ github.event.inputs.from_time }}
           TO_T: ${{ github.event.inputs.to_time }}
         run: |
-          SCRIPT=safe_picks.py
-          if [ "$SOURCE" = "footballcharts" ] || [ "$MODE" = "probe" ]; then SCRIPT=fc_picks.py; fi
-          echo "Script utilisé : $SCRIPT"
           if [ "$MODE" = "probe" ]; then
-            python fc_picks.py probe 2>&1 | tee probe.txt
-          else
-            python $SCRIPT update
-            case "$MODE" in
-              maintenant) python $SCRIPT picks --now --until "${UNTIL:-06:00}" ;;
-              creneau)    python $SCRIPT picks --from "${FROM_T:-18:00}" --to "${TO_T:-23:59}" ;;
-              *)          python $SCRIPT picks ;;
-            esac
-            python $SCRIPT export
-            python $SCRIPT dashboard
+            python fc_picks.py probe
+            exit 0
           fi
+          python fc_picks.py update
+          case "$MODE" in
+            maintenant) python fc_picks.py picks --now --until "$UNTIL" ;;
+            creneau)    python fc_picks.py picks --from "$FROM_T" --to "$TO_T" ;;
+            *)          python fc_picks.py picks ;;
+          esac
+          python fc_picks.py export
+          python fc_picks.py dashboard
 
       - name: Enregistrer les résultats
+        if: ${{ github.event.inputs.mode != 'probe' }}
         run: |
+          mkdir -p data docs
           git config user.name "pronostics-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add data docs probe.txt 2>/dev/null || true
+          git add data docs
           git diff --cached --quiet || git commit -m "Mise à jour $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
