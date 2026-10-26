@@ -4,7 +4,7 @@ fc_picks.py : version "Football Charts seule" (pas de direct).
 Réutilise la logique de safe_picks.py (marchés, base de données, tableau de bord, fiche).
 
 Commandes :
-  python fc_picks.py probe        # affiche un échantillon des vraies données (à m'envoyer)
+  python fc_picks.py probe        # affiche un échantillon des vraies données
   python fc_picks.py picks        # matchs à venir aujourd'hui
   python fc_picks.py picks --now [--until 06:00]
   python fc_picks.py picks --from 18:00 --to 23:59
@@ -22,18 +22,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zlib
-import functools
 from datetime import datetime, timedelta, timezone
 
 import safe_picks as sp
-
-print = functools.partial(print, flush=True)  # affichage immédiat dans le journal
 
 KEY = os.environ.get("FC_API_KEY", "")
 BASE = "https://footballcharts-backend.onrender.com/api/v1"
 UTC = timezone.utc
 calls = 0
 _last = 0.0
+MAX_CALLS = 190   # quota gratuit : 200 requêtes/jour
 
 # mention obligatoire de la source
 sp.HTML = sp.HTML.replace("</body>", "<p><small>Data by football-charts.com</small></p></body>")
@@ -44,6 +42,8 @@ def fc(path, **params):
     global calls, _last
     if not KEY:
         sys.exit("Clé manquante : secret FC_API_KEY.")
+    if calls >= MAX_CALLS:
+        return None
     wait = 1.1 - (time.time() - _last)
     if wait > 0:
         time.sleep(wait)
@@ -60,6 +60,7 @@ def fc(path, **params):
             return data
         except urllib.error.HTTPError as e:
             _last = time.time()
+            calls += 1
             if e.code == 429 and attempt < 2:
                 time.sleep(20)
                 continue
@@ -174,7 +175,7 @@ def result_of(r):
 def leagues():
     out = []
     for l in items(fc("/leagues/")):
-        key = g(l, "key", "slug", "id", "code")
+        key = g(l, "league", "key", "slug", "id", "code")   # FC appelle ce champ "league"
         if key is None:
             continue
         seasons = []
@@ -191,26 +192,31 @@ _hist_cache = {}
 
 
 def league_history(lg):
-    """{nom normalisé: [entrées chronologiques]} pour une ligue (saison courante + précédente)."""
+    """{nom normalisé: [entrées chronologiques]} pour une ligue.
+    Saison courante ; saison précédente seulement si des équipes manquent d'historique."""
     if lg["key"] in _hist_cache:
         return _hist_cache[lg["key"]]
-    rows = []
-    seasons = [None] + lg["seasons"][1:2]   # None = saison par défaut ; puis la précédente
-    for s in seasons:
-        rows += items(fc(f"/leagues/{lg['key']}/results/", season=s))
     seen, hist = set(), {}
-    for r in rows:
-        res = result_of(r)
-        if not res:
-            continue
-        dt, home, away, (hg, ag), ht = res
-        k = (str(dt), norm(home), norm(away))
-        if k in seen:
-            continue
-        seen.add(k)
-        hth, hta = ht if ht else (None, None)
-        hist.setdefault(norm(home), []).append((dt, {"gf": hg, "ga": ag, "hf": hth, "ha": hta}))
-        hist.setdefault(norm(away), []).append((dt, {"gf": ag, "ga": hg, "hf": hta, "ha": hth}))
+
+    def absorb(rows):
+        for r in rows:
+            res = result_of(r)
+            if not res:
+                continue
+            dt, home, away, (hg, ag), ht = res
+            k = (str(dt), norm(home), norm(away))
+            if k in seen:
+                continue
+            seen.add(k)
+            hth, hta = ht if ht else (None, None)
+            hist.setdefault(norm(home), []).append((dt, {"gf": hg, "ga": ag, "hf": hth, "ha": hta}))
+            hist.setdefault(norm(away), []).append((dt, {"gf": ag, "ga": hg, "hf": hta, "ha": hth}))
+
+    absorb(items(fc(f"/leagues/{lg['key']}/results/")))
+    prev = lg["seasons"][1:2]
+    if prev and (not hist or min(len(v) for v in hist.values()) < sp.HIST_N):
+        absorb(items(fc(f"/leagues/{lg['key']}/results/", season=prev[0])))
+
     floor = datetime.min.replace(tzinfo=UTC)
     for t in hist:
         hist[t].sort(key=lambda x: x[0] or floor)
@@ -238,9 +244,7 @@ def cmd_picks(args):
     print(f"{len(lgs)} ligues. Recherche des matchs du {start:%d/%m %H:%M} au {end:%d/%m %H:%M}…")
 
     todo = []
-    for li, l in enumerate(lgs, 1):
-        if li % 10 == 0 or li == len(lgs):
-            print(f"  ligues vérifiées : {li}/{len(lgs)} — {len(todo)} match(s) dans la fenêtre")
+    for l in lgs:
         for it in items(fc(f"/leagues/{l['key']}/fixtures/")):
             home, away = teams_of(it)
             dt, date_only = when(it)
@@ -253,11 +257,10 @@ def cmd_picks(args):
             if ok:
                 todo.append((l, home, away, dt))
     todo.sort(key=lambda x: x[3])
-    print(f"{len(todo)} match(s) dans la fenêtre.")
+    print(f"{len(todo)} match(s) dans la fenêtre. (requêtes déjà utilisées : {calls})")
 
     found, unknown = [], []
-    for n, (l, home, away, dt) in enumerate(todo, 1):
-        print(f"[{n}/{len(todo)}] analyse : {home} - {away} ({l['name']})")
+    for l, home, away, dt in todo:
         hist = league_history(l)
         hh, ah = hist.get(norm(home)), hist.get(norm(away))
         if not hh or not ah:
@@ -268,11 +271,9 @@ def cmd_picks(args):
             continue
         best = max(cands, key=lambda c: (c["rate"], c["recent5"]))
         found.append((l, home, away, dt, best))
-        print(f"   ➜ TROUVÉ n°{len(found)} : {home} - {away} | {best['label']} ({best['rate']:.0%})")
     found.sort(key=lambda x: (x[4]["rate"], x[4]["recent5"]), reverse=True)
     found = found[:sp.TOP]
 
-    print("\n===== LISTE FINALE (triée par fiabilité) =====")
     if not found:
         print("Aucun match ne remplit les critères pour cette fenêtre.")
     elif len(found) < sp.TOP:
@@ -302,7 +303,7 @@ def cmd_picks(args):
                  (mode, datetime.now(sp.TZ).strftime("%d/%m/%Y %H:%M"),
                   json.dumps({"picks": latest, "analyses": len(todo), "demandes": sp.TOP})))
     conn.commit()
-    print(f"\nRequêtes utilisées : {calls}")
+    print(f"\nRequêtes utilisées : {calls} / {MAX_CALLS}")
 
 
 # ------------------------- UPDATE -------------------------
@@ -342,22 +343,21 @@ def cmd_probe(_args=None):
         print("=" * 12, title)
         s = json.dumps(data, ensure_ascii=False, indent=1)
         print(s[:n] + ("\n…[tronqué]" if len(s) > n else ""))
-    show("GET /api/v1/", fc("/"), 1200)
     raw = fc("/leagues/")
-    show("GET /leagues/ (début)", raw, 1500)
     lgs = leagues()
     print(f"\n{len(lgs)} ligues détectées. Exemples :", [(l['key'], l['seasons'][:3]) for l in lgs[:5]])
     if not lgs:
+        show("GET /leagues/ (début)", raw, 800)
         return
     l = next((x for x in lgs if x["key"] == "premier"), lgs[0])
     res = fc(f"/leagues/{l['key']}/results/")
     rows = items(res)
-    show(f"GET /leagues/{l['key']}/results/ : {len(rows)} lignes, 2 premières", rows[:2], 1800)
+    show(f"GET /leagues/{l['key']}/results/ : {len(rows)} lignes, 2 premières", rows[:2], 1500)
     ok = sum(1 for r in rows if result_of(r))
     print(f"Lignes de résultats lues correctement : {ok}/{len(rows)}")
     fx = fc(f"/leagues/{l['key']}/fixtures/")
     frows = items(fx)
-    show(f"GET /leagues/{l['key']}/fixtures/ : {len(frows)} lignes, 2 premières", frows[:2], 1800)
+    show(f"GET /leagues/{l['key']}/fixtures/ : {len(frows)} lignes, 2 premières", frows[:2], 1500)
     okf = sum(1 for r in frows if teams_of(r)[0] and when(r)[0])
     print(f"Matchs à venir lus correctement : {okf}/{len(frows)}")
     hist = league_history(l)
