@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tableau de bord des pronostics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--card:#f3f4f6;--line:#d1d5db;--ok:#15803d;--ko:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#111827;--fg:#f3f4f6;--card:#1f2937;--line:#374151;--ok:#4ade80;--ko:#f87171}}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:20px;max-width:1000px;margin:auto}
+.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:var(--card);border-radius:10px;padding:14px 18px;flex:1;min-width:140px}
+.card b{display:block;font-size:26px}
+table{width:100%;border-collapse:collapse;margin:10px 0 30px;font-size:14px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+.wrap{overflow-x:auto}.won{color:var(--ok);font-weight:600}.lost{color:var(--ko);font-weight:600}
+</style></head><body>
+<h1>Tableau de bord des pronostics</h1>
+<p id="gen"></p>
+<div class="cards" id="cards"></div>
+<h2>Dernière sélection</h2><p id="lt"></p><div class="wrap"><table id="tl"></table></div>
+<p><a href="fiche.json" download>Télécharger la fiche (à m’envoyer pour analyse)</a></p>
+<h2>Évolution du taux de réussite</h2><canvas id="c1" height="110"></canvas>
+<h2>Résultat par jour</h2><canvas id="c2" height="110"></canvas>
+<h2>Par type de pari</h2><div class="wrap"><table id="tm"></table></div>
+<h2>Prévu vs réalisé</h2><div class="wrap"><table id="tc"></table></div>
+<h2>Derniers pronostics</h2><div class="wrap"><table id="tr"></table></div>
+<script>
+const D = {"latest": {"label": "Matchs à venir aujourd’hui (sans direct)", "ts": "26/10/2026 15:31", "picks": [], "analyses": 0, "demandes": 10}, "total": 0, "won": 0, "rate": null, "pending": 0, "by_day": [], "by_market": [], "calibration": [{"predit": "80-85%", "n": 0, "realise": null}, {"predit": "85-90%", "n": 0, "realise": null}, {"predit": "90-95%", "n": 0, "realise": null}, {"predit": "95-100%", "n": 0, "realise": null}], "recent": [], "generated": "26/10/2026 15:31"};
+document.getElementById('gen').textContent = 'Généré le ' + D.generated;
+document.getElementById('cards').innerHTML =
+ `<div class="card">Taux global<b>${D.rate ?? '–'}${D.rate!==null?' %':''}</b></div>
+  <div class="card">Gagnés<b>${D.won}</b></div>
+  <div class="card">Perdus<b>${D.total-D.won}</b></div>
+  <div class="card">En attente<b>${D.pending}</b></div>`;
+const L = D.latest;
+document.getElementById('lt').textContent = L ? (L.label + ' — calculée le ' + L.ts + ' — ' + L.picks.length + ' pronostic(s) sur ' + L.demandes + ' souhaités') : 'Aucune sélection pour le moment.';
+if (L) document.getElementById('tl').innerHTML = '<tr><th>Heure</th><th>Match</th><th>Pari</th><th>Réalisé</th><th>Direct</th></tr>' +
+ L.picks.map(p=>'<tr><td>'+p.time+'</td><td>'+p.match+'<br><small>'+p.league+'</small></td><td>'+p.label+'</td><td>'+p.rate+' % ('+p.detail+')</td><td>'+p.live+'</td></tr>').join('');
+const days = D.by_day.map(d=>d.day);
+new Chart(document.getElementById('c1'),{type:'line',data:{labels:days,datasets:[
+ {label:'Taux cumulé (%)',data:D.by_day.map(d=>d.cum_rate),tension:.25},
+ {label:'Taux du jour (%)',data:D.by_day.map(d=>d.rate),tension:.25}]},
+ options:{scales:{y:{min:0,max:100}}}});
+new Chart(document.getElementById('c2'),{type:'bar',data:{labels:days,datasets:[
+ {label:'Gagnés',data:D.by_day.map(d=>d.w)},{label:'Perdus',data:D.by_day.map(d=>d.l)}]},
+ options:{scales:{x:{stacked:true},y:{stacked:true}}}});
+const row=(a,h)=>(h?'<tr>'+a.map(x=>'<th>'+x+'</th>').join('')+'</tr>':'<tr>'+a.map(x=>'<td>'+x+'</td>').join('')+'</tr>');
+document.getElementById('tm').innerHTML = row(['Pari','Nb','Gagnés','Réussite'],1)+
+ D.by_market.map(m=>row([m.label.replace(/^.* (marque|ne perd pas.*)$/,'$1'),m.n,m.w,m.rate+' %'])).join('');
+document.getElementById('tc').innerHTML = row(['Taux prévu','Nb','Réalisé'],1)+
+ D.calibration.map(c=>row([c.predit,c.n,c.realise===null?'–':c.realise+' %'])).join('');
+const lab={won:'<span class=won>Gagné</span>',lost:'<span class=lost>Perdu</span>',pending:'En attente',void:'Annulé'};
+document.getElementById('tr').innerHTML = row(['Jour','Match','Pari','Prévu','Score','Résultat'],1)+
+ D.recent.map(r=>row([r.day,r.home+' - '+r.away,r.label,Math.round(r.rate*100)+' %',r.score||'',lab[r.status]])).join('');
+</script><p><small>Data by football-charts.com</small></p></body></html>

@@ -1,0 +1,60 @@
+{
+  "latest": {
+    "label": "Matchs à venir aujourd’hui (sans direct)",
+    "ts": "26/10/2026 15:31",
+    "picks": [],
+    "analyses": 0,
+    "demandes": 10
+  },
+  "total": 0,
+  "won": 0,
+  "rate": null,
+  "pending": 0,
+  "by_day": [],
+  "by_market": [],
+  "calibration": [
+    {
+      "predit": "80-85%",
+      "n": 0,
+      "realise": null
+    },
+    {
+      "predit": "85-90%",
+      "n": 0,
+      "realise": null
+    },
+    {
+      "predit": "90-95%",
+      "n": 0,
+      "realise": null
+    },
+    {
+      "predit": "95-100%",
+      "n": 0,
+      "realise": null
+    }
+  ],
+  "recent": [],
+  "generated": "26/10/2026 15:31",
+  "config": {
+    "hist_n": 10,
+    "min_rate": 0.8,
+    "last_k": 3,
+    "top": 10,
+    "max_matches": 30,
+    "timezone": "Africa/Lubumbashi",
+    "markets": [
+      "O1.5",
+      "O2.5",
+      "U2.5",
+      "U3.5",
+      "BTTS",
+      "NBTTS",
+      "HT0.5",
+      "HSCORE",
+      "ASCORE",
+      "1X",
+      "X2"
+    ]
+  }
+}
