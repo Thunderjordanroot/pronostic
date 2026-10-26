@@ -160,7 +160,7 @@ def result_of(r):
     """(dt, home, away, (hg, ag), (hth, hta) ou None) ou None."""
     home, away = teams_of(r)
     sc = g(r, "score", "ft", "ft_score", "full_time", "result")
-    ht = g(r, "ht", "ht_score", "halftime", "half_time", "halftime_score", "score_ht")
+    ht = g(r, "ht_result", "ht", "ht_score", "halftime", "half_time", "halftime_score", "score_ht")
     if isinstance(sc, dict) and pair(sc) is None:
         ht = ht or g(sc, "ht", "half_time", "halftime")
         sc = g(sc, "ft", "full_time", "fulltime")
