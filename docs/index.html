@@ -24,7 +24,7 @@ th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
 <h2>Prévu vs réalisé</h2><div class="wrap"><table id="tc"></table></div>
 <h2>Derniers pronostics</h2><div class="wrap"><table id="tr"></table></div>
 <script>
-const D = {"latest": {"label": "Matchs à venir aujourd’hui (sans direct)", "ts": "27/10/2026 08:27", "picks": [], "analyses": 0, "demandes": 10}, "total": 0, "won": 0, "rate": null, "pending": 0, "by_day": [], "by_market": [], "calibration": [{"predit": "80-85%", "n": 0, "realise": null}, {"predit": "85-90%", "n": 0, "realise": null}, {"predit": "90-95%", "n": 0, "realise": null}, {"predit": "95-100%", "n": 0, "realise": null}], "recent": [], "generated": "27/10/2026 08:27"};
+const D = {"latest": {"label": "Matchs à venir aujourd’hui (sans direct)", "ts": "27/10/2026 11:33", "picks": [], "analyses": 0, "demandes": 10}, "total": 0, "won": 0, "rate": null, "pending": 0, "by_day": [], "by_market": [], "calibration": [{"predit": "80-85%", "n": 0, "realise": null}, {"predit": "85-90%", "n": 0, "realise": null}, {"predit": "90-95%", "n": 0, "realise": null}, {"predit": "95-100%", "n": 0, "realise": null}], "recent": [], "generated": "27/10/2026 11:33"};
 document.getElementById('gen').textContent = 'Généré le ' + D.generated;
 document.getElementById('cards').innerHTML =
  `<div class="card">Taux global<b>${D.rate ?? '–'}${D.rate!==null?' %':''}</b></div>
