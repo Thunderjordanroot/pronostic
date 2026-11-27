@@ -1,7 +1,7 @@
 {
   "latest": {
     "label": "Matchs à venir aujourd’hui (sans direct)",
-    "ts": "26/11/2026 15:30",
+    "ts": "27/11/2026 15:26",
     "picks": [],
     "analyses": 0,
     "demandes": 10
@@ -35,7 +35,7 @@
     }
   ],
   "recent": [],
-  "generated": "26/11/2026 15:30",
+  "generated": "27/11/2026 15:26",
   "config": {
     "hist_n": 10,
     "min_rate": 0.8,
